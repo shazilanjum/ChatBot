@@ -1,0 +1,132 @@
+﻿@page "/chat"
+
+@using DemoChatApp.Interfaces
+@using DemoChatApp.Models
+@using Microsoft.AspNetCore.Components.Web
+@using DevExpress.Blazor
+@using DemoChatApp
+@using DemoChatApp.Data
+@using System.Collections.ObjectModel
+@using Microsoft.EntityFrameworkCore
+
+@inject ChatDbContext _dbContext
+@inject IChatService _chatService
+
+<PageTitle>Weather</PageTitle>
+
+<DxSplitter>
+    <Panes>
+        <!-- Sidebar Pane -->
+        <DxSplitterPane Size="20%" MinSize="200px">
+            <div style="margin-bottom: 15px;">
+                <DxButton Text="New Chat" Click="StartNewChat" CssClass="w-full" />
+            </div>
+            <DxListBox Data="@PreviousChats" @bind-Values="@Values" Style="height: 100vh; width: 100%;"></DxListBox>
+        </DxSplitterPane>
+        <DxSplitterPane>
+            <DevExpress.Blazor.Internal.DxCard>
+                <DevExpress.Blazor.Internal.DxCardHeader>
+                    <DxGridLayout ColumnSpacing="8px" RowSpacing="8px">
+                        <Rows>
+                            <DxGridLayoutRow Height="auto" />
+                        </Rows>
+                        <Columns>
+                            <DxGridLayoutColumn Width="2fr" />
+                            <DxGridLayoutColumn Width="60%" />
+                            <DxGridLayoutColumn />
+                        </Columns>
+                        <Items>
+                            <DxGridLayoutItem Row="1" Column="1">
+                                <Template>
+                                    <h3>OpenAI</h3>
+                                </Template>
+                            </DxGridLayoutItem>
+                            <DxGridLayoutItem Row="1" Column="0">
+                                <Template>
+                                    <DxComboBox Data="@Models" @bind-Value="@Value" ShowDropDownButton=false>
+                                        <Buttons>
+                                            <DxComboBoxDropDownButton Position="EditorButtonPosition.Right" />
+                                        </Buttons>
+                                    </DxComboBox>
+                                </Template>
+                            </DxGridLayoutItem>
+                        </Items>
+                    </DxGridLayout>
+                </DevExpress.Blazor.Internal.DxCardHeader>
+                <DevExpress.Blazor.Internal.DxCardBody>
+                    <DxMemo Text="@TextValue" ResizeMode="MemoResizeMode.Disabled"
+                            ReadOnly="true" Style="height: 200px;"></DxMemo>
+                </DevExpress.Blazor.Internal.DxCardBody>
+            </DevExpress.Blazor.Internal.DxCard>
+            <div style="margin-top: 400px;">
+                <DevExpress.Blazor.Internal.DxCard>
+                    <DevExpress.Blazor.Internal.DxCardHeader>
+                        <DxMemo @bind-Text="@UserMessage" NullText="Message" SizeMode="SizeMode.Large" ResizeMode="MemoResizeMode.Disabled" Style="height: 200px;"></DxMemo>
+                        <DxButton CssClass="myButton" RenderStyle="ButtonRenderStyle.Light" SizeMode="SizeMode.Large"
+                                  IconCssClass="undo" />
+                    </DevExpress.Blazor.Internal.DxCardHeader>
+                </DevExpress.Blazor.Internal.DxCard>
+            </div>
+        </DxSplitterPane>
+    </Panes>
+</DxSplitter>
+
+@code {
+    private List<ChatMessage> Messages = new();
+    private string UserMessage { get; set; }
+    private List<string> PreviousChats { get; set; }
+    private string SelectedChat { get; set; }
+    IEnumerable<string> Models = new List<string>() {
+    "gpt-4",
+    "gpt-4-turbo",
+    "gpt-3.5-turbo"
+  };
+
+
+    private string TextValue { get; set; } = "End users cannot change the Memo value";
+
+    private string Value = null;
+    IEnumerable<string> Values { get; set; }
+
+    private void SendMessage()
+    {
+        if (!string.IsNullOrWhiteSpace(UserMessage))
+        {
+            Messages.Add(new ChatMessage { Content = UserMessage, IsUser = true });
+            Messages.Add(new ChatMessage { Content = "AI Response here...", IsUser = false });
+            UserMessage = string.Empty;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Chat chat = new Chat
+        // {
+        //     Title = "New Chat 1"
+        // };
+
+        // await _dbContext.Chats.AddAsync(chat);
+        // await _dbContext.SaveChangesAsync();
+
+        PreviousChats = await _dbContext.Chats.Select(chat => chat.Title).ToListAsync();
+    }
+
+    private async Task StartNewChat()
+    {
+        Chat chat = new Chat();
+
+        chat.Title = await _chatService.GetChatTitle();
+
+        await _dbContext.AddAsync(chat);
+
+        await _dbContext.SaveChangesAsync();
+
+        PreviousChats.Add(chat.Title);
+    }
+
+    private class ChatMessage
+    {
+        public string Content { get; set; }
+        public bool IsUser { get; set; }
+    }
+}
