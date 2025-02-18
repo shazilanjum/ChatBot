@@ -9,6 +9,6 @@ namespace DemoChatApp.Models.Enum
     public enum SenderRoles
     {
         User,
-        Bot
+        Assistant
     }
 }

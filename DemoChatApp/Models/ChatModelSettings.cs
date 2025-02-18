@@ -14,7 +14,7 @@ namespace DemoChatApp.Models
         [Key]
         public int ID { get; set; }
 
-        public ChatModel SelectedModel { get; set; }
+        public string SelectedModel { get; set; }
 
         public Chat Chat { get; set; }
         public int ChatID { get; set; }
@@ -23,7 +23,7 @@ namespace DemoChatApp.Models
 
         public ChatModelSettings()
         {
-            SelectedModel = ChatModel.gpt3_5;
+            SelectedModel = "gpt-3.5-turbo";
             Parameters = new ModelParameters();
         }
     }
