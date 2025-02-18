@@ -1,4 +1,6 @@
-﻿using DemoChatApp.Models.Enum;
+﻿using DemoChatApp.Contracts;
+using DemoChatApp.Models.Enum;
+using DemoChatApp.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -14,7 +16,7 @@ namespace DemoChatApp.Models
         [Key]
         public int ID { get; set; }
 
-        public string SelectedModel { get; set; }
+        public ChatModels SelectedModel { get; set; }
 
         public Chat Chat { get; set; }
         public int ChatID { get; set; }
@@ -23,8 +25,19 @@ namespace DemoChatApp.Models
 
         public ChatModelSettings()
         {
-            SelectedModel = "gpt-3.5-turbo";
+            SelectedModel = ChatModels.gpt3_5;
             Parameters = new ModelParameters();
+        }
+
+        public ChatModelSettings(ChatModelSettingsViewModel settingsViewModel)
+        {
+            SelectedModel = OpenAIModels.OpenAIModelsMapping.FirstOrDefault(kv => kv.Value == settingsViewModel.SelectedModel).Key;
+            Parameters = new ModelParameters 
+            { 
+                MaxTokens = settingsViewModel.MaxTokens,
+                Temperature = settingsViewModel.Temperature,
+                TopP = settingsViewModel.TopP,
+            };
         }
     }
 

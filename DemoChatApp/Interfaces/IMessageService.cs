@@ -9,7 +9,8 @@ namespace DemoChatApp.Interfaces
 {
     public interface IMessageService
     {
-        Task<bool> AddMessageAsync(int chatId, List<ChatMessage> messages);
         Task<List<ChatMessage>> GetMessagesByChatIdAsync(int chatId);
+
+        Task<bool> AddMessagesInChatAsync(int chatId, List<ChatMessage> messages);
     }
 }

@@ -1,27 +1,25 @@
 ﻿@page "/chat"
 
-@using DemoChatApp.Interfaces
-@using DemoChatApp.Models
-@using Microsoft.AspNetCore.Components.Web
+@using DemoChatApp.Contracts
+@using DemoChatApp.Models.Enum
+@using DemoChatApp.ViewModels
 @using DevExpress.Blazor
-@using DemoChatApp
-@using DemoChatApp.Data
+@using DevExpress.Blazor.Internal
+@using DevExpress.Blazor.Legacy
 @using System.Collections.ObjectModel
-@using Microsoft.EntityFrameworkCore
+@using DevExpress.XtraDiagram.Utils
+@using Markdig
+@inject ChatViewModel ViewModel
 
-@inject ChatDbContext _dbContext
-@inject IChatService _chatService
 
-<PageTitle>Weather</PageTitle>
-
-<DxSplitter>
+<DxSplitter CssClass="border" Height="100vh">
     <Panes>
         <!-- Sidebar Pane -->
         <DxSplitterPane Size="20%" MinSize="200px">
             <div style="margin-bottom: 15px;">
-                <DxButton Text="New Chat" Click="StartNewChat" CssClass="w-full" />
+                <DxButton Click="ViewModel.StartNewChat" Text="New Chat" CssClass="w-full" />
             </div>
-            <DxListBox Data="@PreviousChats" @bind-Values="@Values" Style="height: 100vh; width: 100%;"></DxListBox>
+            <DxListBox ShowSearchBox="true" Data="@ViewModel.Chats" SelectedItemsChanged="@(async (IEnumerable<ChatListViewModel> values) => await ViewModel.OnClickChatChange(values))" @bind-Values="ViewModel.SelectedChatSelection" TextFieldName="@nameof(ChatListViewModel.ChatTitle)" Style="height: 100%; width: 100%;"></DxListBox>
         </DxSplitterPane>
         <DxSplitterPane>
             <DevExpress.Blazor.Internal.DxCard>
@@ -35,59 +33,281 @@
                             <DxGridLayoutColumn Width="60%" />
                             <DxGridLayoutColumn />
                         </Columns>
+
                         <Items>
-                            <DxGridLayoutItem Row="1" Column="1">
-                                <Template>
-                                    <h3>OpenAI</h3>
-                                </Template>
-                            </DxGridLayoutItem>
                             <DxGridLayoutItem Row="1" Column="0">
                                 <Template>
-                                    <DxComboBox Data="@Models" @bind-Value="@Value" ShowDropDownButton=false>
+                                    <DxComboBox Data="ViewModel.OpenAIModelsList" @bind-Value="ViewModel.ChatModelSettingsViewModel.SelectedModel" ShowDropDownButton="false" NullText="Models">
                                         <Buttons>
                                             <DxComboBoxDropDownButton Position="EditorButtonPosition.Right" />
                                         </Buttons>
                                     </DxComboBox>
                                 </Template>
                             </DxGridLayoutItem>
+                            <DxGridLayoutItem Row="0" Column="1">
+                                <Template>
+                                    @*     <DxComboBox Data="@modelSetting"
+                                    @bind-Value="@Value"
+                                    ShowDropDownButton="false"
+                                    NullText="Settings">
+                                    <Buttons>
+                                    <DxComboBoxDropDownButton Position="EditorButtonPosition.Right" />
+                                    </Buttons>
+                                    </DxComboBox> *@
+
+
+                                    <DxButton Text="Parameters" Click="@(() => PopupVisible = true)" />
+                                    <DxPopup @bind-Visible="@PopupVisible"
+                                             HeaderText="Model Parameter Setting"
+                                             ShowFooter="true">
+                                        <BodyTemplate Context="PopupContext">
+                                            <DxFormLayout style="padding: 1rem;">
+                                                <DxFormLayoutItem Caption="Temperature:" ColSpanMd="12">
+                                                    <input type="range" min="0" max="1" step="0.01" @bind="sliderValue" class="custom-slider" />
+                                                </DxFormLayoutItem>
+                                                <DxFormLayoutItem Caption="TopP:" ColSpanMd="12">
+                                                    <DxRangeSelector Width="100%" SelectedRangeStartValue="0.5"
+                                                                     SelectedRangeEndValue="0.5"
+                                                                     ValueChangeMode="RangeSelectorValueChangeMode.OnHandleMove">
+
+                                                        <DxRangeSelectorScale StartValue="0"
+                                                                              EndValue="1">
+                                                            <DxRangeSelectorScaleLabel TopIndent="0">
+                                                                <DxFontSettings Weight="600" Color="#5f368d" Size="14" />
+                                                                <DxTextFormatSettings Type="TextFormat.Decimal" />
+                                                            </DxRangeSelectorScaleLabel>
+                                                        </DxRangeSelectorScale>
+
+                                                    </DxRangeSelector>
+
+                                                </DxFormLayoutItem>
+
+                                            </DxFormLayout>
+                                        </BodyTemplate>
+                                        <FooterContentTemplate>
+                                            <DxButton RenderStyle="ButtonRenderStyle.Primary" Text="OK"
+                                                      Click="@context.CloseCallback" />
+                                        </FooterContentTemplate>
+                                    </DxPopup>
+
+
+
+                                </Template>
+                            </DxGridLayoutItem>
                         </Items>
                     </DxGridLayout>
+
                 </DevExpress.Blazor.Internal.DxCardHeader>
-                <DevExpress.Blazor.Internal.DxCardBody>
-                    <DxMemo Text="@TextValue" ResizeMode="MemoResizeMode.Disabled"
-                            ReadOnly="true" Style="height: 200px;"></DxMemo>
-                </DevExpress.Blazor.Internal.DxCardBody>
+                <div class="chat-body">
+                    <DevExpress.Blazor.Internal.DxCardBody CssClass="full-height">
+
+                        @if (ViewModel.SelectedChat != null)
+                        {
+                            <div class="chat-box">
+                                @foreach (var message in ViewModel.SelectedChat.ChatHistory)
+                                {
+                                    if (message.Sender == SenderRoles.User)
+                                    {
+                                        <div class="chat-message">
+                                            <DevExpress.Blazor.Internal.DxCard>
+                                                <DevExpress.Blazor.Internal.DxCardBody>
+                                                    <div>
+                                                        @(Markdown.ToHtml(message.Message))
+                                                    </div>
+                                                </DevExpress.Blazor.Internal.DxCardBody>
+                                            </DevExpress.Blazor.Internal.DxCard>
+                                        </div>
+                                    }
+
+
+
+                                }
+                            </div>
+                        }
+                        
+                    </DevExpress.Blazor.Internal.DxCardBody>
+                </div>
+  
             </DevExpress.Blazor.Internal.DxCard>
-            <div style="margin-top: 400px;">
+            <div style="margin-top: 20px;">
                 <DevExpress.Blazor.Internal.DxCard>
                     <DevExpress.Blazor.Internal.DxCardHeader>
-                        <DxMemo @bind-Text="@UserMessage" NullText="Message" SizeMode="SizeMode.Large" ResizeMode="MemoResizeMode.Disabled" Style="height: 200px;"></DxMemo>
-                        <DxButton CssClass="myButton" RenderStyle="ButtonRenderStyle.Light" SizeMode="SizeMode.Large"
-                                  IconCssClass="undo" />
+                        <DxMemo @bind-Text="ViewModel.UserMessage" NullText="Ask me something..." SizeMode="SizeMode.Large" ResizeMode="MemoResizeMode.Disabled" Style="height: 100px;"></DxMemo>
+                        <DxButton style="margin-top: 10px;" Click="ViewModel.SendMessage" Text="Send" CssClass="mt-2" />
+
                     </DevExpress.Blazor.Internal.DxCardHeader>
+
+
                 </DevExpress.Blazor.Internal.DxCard>
             </div>
+
+
         </DxSplitterPane>
     </Panes>
+
+
+
 </DxSplitter>
 
+
+<style>
+    .sidebar {
+        width: 250px;
+        padding: 10px;
+        background: #f5f5f5;
+    }
+
+    .new-chat-button {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .chat-window {
+        padding: 15px;
+    }
+
+    .undo {
+        width: 16px;
+        height: 16px;
+        background-image: url("../images/send.png");
+    }
+
+    .myButton {
+        float: right
+    }
+
+    .full-height {
+        height: 100vh !important; /* Ensure it takes full viewport height */
+        width: 100%;
+    }
+
+    .vertical-layout {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .custom-slider {
+        width: 100%;
+        appearance: none;
+        height: 6px;
+        background: #ccc;
+        border-radius: 4px;
+        outline: none;
+    }
+
+    .custom-slider::-webkit-slider-thumb {
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        background: #5f368d;
+        border-radius: 50%;
+        cursor: pointer;
+    }
+
+    .vertical-layout div {
+        margin-bottom: 8px;
+    }
+
+    .full-height-drawer .dx-drawer-panel {
+        height: 100vh !important; /* Full viewport height */
+    }
+
+    .chat-container {
+        max-width: 600px;
+        margin: auto;
+    }
+
+    .chat-box {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .chat-body {
+        height: 400px; /* Set a fixed height */
+        overflow-y: auto; /* Enable scrolling */
+        padding: 10px;
+        background-color: #f9f9f9;
+        border-radius: 10px;
+    }
+
+    .chat-message {
+        padding: 10px;
+        border-radius: 8px;
+        background-color: #f4f4f4;
+        max-width: 80%;
+    }
+
+    .chat-message:nth-child(even) {
+        align-self: flex-start;
+        background-color: #e0e0e0;
+    }
+
+    .chat-message:nth-child(odd) {
+        align-self: flex-end;
+        background-color: #d1e7ff;
+    }
+
+    .full-height{
+        height: 100vh
+    }
+
+</style>
+
+
 @code {
+
+
+    private double[] sliderValue;
     private List<ChatMessage> Messages = new();
     private string UserMessage { get; set; }
-    private List<string> PreviousChats { get; set; }
+    
     private string SelectedChat { get; set; }
-    IEnumerable<string> Models = new List<string>() {
-    "gpt-4",
-    "gpt-4-turbo",
-    "gpt-3.5-turbo"
-  };
+    IEnumerable<string> Models;
 
+
+    protected override async Task OnInitializedAsync()
+    {
+        InitializeUIComponents();
+
+        await ViewModel.LoadChats();
+    }
+
+
+    Dictionary<string, int> modelSetting = new Dictionary<string, int>
+    {
+        { "max_tokens", 20 },
+        { "temperature", (int)(0.7 * 10) }, // Converted to integer
+        { "top_p", (int)(0.9 * 10) } // Converted to integer
+    };
+
+    string Name { get; set; } = "Nancy Davolio";
+    DateTime BirthDate { get; set; } = DateTime.Now.AddYears(-20);
+    string Email { get; set; } = "NancyDavolio@sample.com";
 
     private string TextValue { get; set; } = "End users cannot change the Memo value";
 
     private string Value = null;
     IEnumerable<string> Values { get; set; }
 
+
+    private bool IsDrawerOpen { get; set; } = false;
+
+    private void OpenDrawer()
+    {
+        IsDrawerOpen = true;
+    }
+
+    private void CloseDrawer()
+    {
+        IsDrawerOpen = false;
+    }
+    Dictionary<string, object> GetCloseInfoButtonAttributes()
+    {
+        return new Dictionary<string, object> {
+            { A11yAriaAttributeUtils.AriaLabel, "Close Info Drawer" }
+        };
+    }
     private void SendMessage()
     {
         if (!string.IsNullOrWhiteSpace(UserMessage))
@@ -98,30 +318,10 @@
         }
     }
 
-    protected override async Task OnInitializedAsync()
+    private void StartNewChat()
     {
-        // Chat chat = new Chat
-        // {
-        //     Title = "New Chat 1"
-        // };
-
-        // await _dbContext.Chats.AddAsync(chat);
-        // await _dbContext.SaveChangesAsync();
-
-        PreviousChats = await _dbContext.Chats.Select(chat => chat.Title).ToListAsync();
-    }
-
-    private async Task StartNewChat()
-    {
-        Chat chat = new Chat();
-
-        chat.Title = await _chatService.GetChatTitle();
-
-        await _dbContext.AddAsync(chat);
-
-        await _dbContext.SaveChangesAsync();
-
-        PreviousChats.Add(chat.Title);
+        Messages.Clear();
+        SelectedChat = null;
     }
 
     private class ChatMessage
@@ -129,4 +329,31 @@
         public string Content { get; set; }
         public bool IsUser { get; set; }
     }
+
+    //OpenAIModels ModelValue { get; set; }
+
+    private List<Setting> Data = new()
+    {
+        new Setting { ID = 1, MaxTokens = 24, Temperature = 0.7 },
+    };
+
+    private Setting SettingValue { get; set; }
+
+    public class Setting
+    {
+        public int ID { get; set; }
+        public int MaxTokens { get; set; }
+        public double Temperature { get; set; }
+    }
+
+    bool PopupVisible { get; set; } = false;
+
+
+    public void InitializeUIComponents()
+    {
+        sliderValue = new List<double> { 0.5,0.5}.ToArray();
+
+        Models = OpenAIModels.OpenAIModelsMapping.Values.ToList();
+    }
+
 }

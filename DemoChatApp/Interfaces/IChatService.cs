@@ -8,17 +8,16 @@ using System.Threading.Tasks;
 
 namespace DemoChatApp.Interfaces
 {
-    internal interface IChatService
+    public interface IChatService
     {
-        Task<List<Chat>> GetAllChatsAsync();
-        List<string> GetModels();
+        Task<List<Chat>> GetChatsListAsync();
+
         Task<Chat> GetChatByIdAsync(int chatId);
-        Task<ChatModelSettings> GetChatSettingsAsync(int chatId);
-        Task<ChatDetails> GetChatDetailsAsync(int chatId);
-        Task<int> CreateChatAsync(string userMessage);
-        Task<bool> AddChatSettingsAsync(int chatId, ChatModelSettings settings);
-        Task<string> NewChatResponseAsync(ChatModelSettings settings, string userMessage);
-        Task<string> ChatWithContextResponseAsync(int chatId, string userMessage);
+
+        Task<Chat> CreateChatAsync(string userMessage, ChatModelSettings chatModelSettings);
+
+        Task<string> ChatWithAI(string userMessage, Chat chat, bool settingsChanged = false);
+        
         Task<bool> DeleteChatAsync(int chatId);
     }
 }

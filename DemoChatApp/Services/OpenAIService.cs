@@ -1,4 +1,5 @@
-﻿using DemoChatApp.Interfaces;
+﻿using DemoChatApp.Contracts;
+using DemoChatApp.Interfaces;
 using DemoChatApp.Models;
 using DemoChatApp.Models.Enum;
 using DemoChatApp.Options;
@@ -12,6 +13,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using static System.Windows.Forms.Design.AxImporter;
 
 namespace DemoChatApp.Services
 {
@@ -25,11 +27,11 @@ namespace DemoChatApp.Services
         }
 
 
-        public async Task<string> Chat(string userMessage, ChatModelSettings settings, List<Models.ChatMessage> chatHistory = null)
+        public async Task<string> Chat(string prompt, List<Models.ChatMessage> chatHistory = null, ChatModelSettings settings = null)
         {
             List<OpenAI.Chat.ChatMessage> chatMessages = new List<OpenAI.Chat.ChatMessage>();
 
-            if (chatHistory.Any())
+            if (chatHistory is not null && chatHistory.Any())
             {
                 chatHistory.ForEach(message =>
                 {
@@ -47,32 +49,27 @@ namespace DemoChatApp.Services
                 });
             }
 
-            chatMessages.Add(new UserChatMessage(userMessage));
-            ChatClient client = new(model: settings.SelectedModel.ToString(), apiKey: _openAIOptions.ApiKey);
-
-            ChatCompletionOptions options = new ChatCompletionOptions()
-            {
-                TopP = settings.Parameters.TopP,
-                Temperature = settings.Parameters.Temperature,
-                MaxOutputTokenCount = settings.Parameters.MaxTokens,
-
-            };
-
-            var response = await client.CompleteChatAsync(chatMessages, options);
-            return response.Value.Content.FirstOrDefault().Text;
-        }
-
-        public async Task<string> GenerateChatTitle(string userMessage)
-        {
-            var prompt = "Based on the following user message, generate a short and meaningful chat title:\n\n" +
-                            $"User: {userMessage}\n\n" +
-                            "Title:";
-
-            List<OpenAI.Chat.ChatMessage> chatMessages = new List<OpenAI.Chat.ChatMessage>();
             chatMessages.Add(new UserChatMessage(prompt));
-            ChatClient client = new(model: "gpt-4", apiKey: _openAIOptions.ApiKey);
+
+            ChatClient client = new(model: settings == null ? OpenAIModels.OpenAIModelsMapping[ChatModels.gpt4o] : OpenAIModels.OpenAIModelsMapping[settings.SelectedModel], apiKey: _openAIOptions.ApiKey);
+
+            if (settings != null)
+            {
+                ChatCompletionOptions options = new ChatCompletionOptions()
+                {
+                    TopP = settings.Parameters.TopP,
+                    Temperature = settings.Parameters.Temperature,
+                    MaxOutputTokenCount = settings.Parameters.MaxTokens,
+
+                };
+
+                var responseWithOptions = await client.CompleteChatAsync(chatMessages, options);
+                return responseWithOptions.Value.Content.FirstOrDefault().Text;
+            }
+
             var response = await client.CompleteChatAsync(chatMessages);
             return response.Value.Content.FirstOrDefault().Text;
         }
+       
     }
 }

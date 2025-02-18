@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using DemoChatApp.Options;
 using DemoChatApp.Interfaces;
 using DemoChatApp.Services;
+using DemoChatApp.ViewModels;
 
 namespace DemoChatApp
 {
@@ -45,6 +46,8 @@ namespace DemoChatApp
 
                     services.AddScoped<IChatService, ChatService>();
                     services.AddScoped<IOpenAIService, OpenAIService>();
+                    services.AddScoped<IMessageService, MessageService>();
+                    services.AddSingleton<ChatViewModel>();
 
                     services.AddDbContext<ChatDbContext>(options =>
                     

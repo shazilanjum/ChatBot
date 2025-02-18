@@ -2,7 +2,9 @@
 using DemoChatApp.Interfaces;
 using DemoChatApp.Models;
 using DemoChatApp.Models.Enum;
+using DemoChatApp.Options;
 using DemoChatApp.ViewModels;
+using DevExpress.Utils.Extensions;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -19,7 +21,6 @@ namespace DemoChatApp.Services
         private readonly IOpenAIService _openAIService;
         private readonly IMessageService _messageService;
         private readonly ChatDbContext _context;
-        private ChatModelSettings chatSetting;
         public ChatService(ChatDbContext context, IOpenAIService openAIService, IMessageService messageService)
         {
             _context = context;
@@ -27,59 +28,92 @@ namespace DemoChatApp.Services
             _messageService = messageService;
         }
 
-        public async Task<List<Chat>> GetAllChatsAsync()
+        public async Task<List<Chat>> GetChatsListAsync()
         {
             return await _context.Chats.ToListAsync();
         }
 
         public async Task<Chat> GetChatByIdAsync(int chatId)
         {
-            return await _context.Chats.FindAsync(chatId);
+            var chat = await _context.Chats.FirstOrDefaultAsync(chat => chat.ID == chatId);
+
+            return chat;
         }
 
-        public List<string> GetModels() => new()
+        public async Task<Chat> CreateChatAsync(string userMessage, ChatModelSettings chatModelSettings)
         {
-            "gpt-4",
-            "gpt-4-turbo",
-            "gpt-3.5-turbo"
-        };
-        public async Task<ChatModelSettings> GetChatSettingsAsync(int chatId)
-        {
-            return await _context.ChatModelSettings
-                .FirstOrDefaultAsync(s => s.ChatID == chatId);
-        }
-
-        public async Task<ChatDetails> GetChatDetailsAsync(int chatId)
-        {
-            var chat = await GetChatByIdAsync(chatId);
-            if (chat == null) return null;
-
-            var messages = await _messageService.GetMessagesByChatIdAsync(chatId);
-            var settings = await GetChatSettingsAsync(chatId);
-            chatSetting = settings;
-
-            return new ChatDetails
-            {
-                Chat = chat,
-                Messages = messages,
-                ChatSettings = settings
-            };
-        }
-
-        public async Task<int> CreateChatAsync(string userMessage)
-        {
-            string chatTitle = await _openAIService.GenerateChatTitle(userMessage);
+            string chatTitle = await GenerateChatTitle(userMessage);
+            
             if (string.IsNullOrEmpty(chatTitle))
             {
-                return -1;
+                return null;
             }
-            var chat = new Chat { Title = chatTitle };
+
+            var chat = new Chat 
+            { 
+                Title = chatTitle, 
+                ModelSettings = chatModelSettings, 
+                ChatHistory =
+                [
+                    new(SenderRoles.User, userMessage)
+                ] 
+            };
+
             _context.Chats.Add(chat);
+            
             await _context.SaveChangesAsync();
-            return chat.ID;
+           
+            return chat;
         }
 
-        public async Task<bool> AddChatSettingsAsync(int chatId, ChatModelSettings settings)
+
+        public async Task<string> ChatWithAI(string userMessage, Chat chat, bool settingsChanged = false)
+        {
+            if (settingsChanged)
+            {
+                await AddChatSettingsAsync(chat.ID, chat.ModelSettings);
+            }
+
+            
+            List<Models.ChatMessage> messagesList = chat.ChatHistory
+                                .OrderByDescending(m => m.Timestamp)
+                                .Take(20)
+                                .Select(m => new Models.ChatMessage(m.Sender, m.Message))
+                                .ToList();
+
+            messagesList.Add(new Models.ChatMessage(SenderRoles.User, userMessage));
+
+            var gptResponse = await _openAIService.Chat(userMessage, messagesList, chat.ModelSettings);
+
+            if (string.IsNullOrEmpty(gptResponse))
+            {
+                return null;
+            }
+
+
+            List<ChatMessage> messages = [new(SenderRoles.User, userMessage), new(SenderRoles.Assistant, gptResponse)];
+
+            bool messagesAdded = await _messageService.AddMessagesInChatAsync(chat.ID, messages);
+
+            if (!messagesAdded) return null;
+
+            return gptResponse;
+        }
+
+        public async Task<bool> DeleteChatAsync(int chatId)
+        {
+            var chat = await _context.Chats.FindAsync(chatId);
+
+            if (chat == null) return false;
+
+            _context.Chats.Remove(chat);
+
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+        
+        private async Task<bool> AddChatSettingsAsync(int chatId, ChatModelSettings settings)
         {
             var existingSetting = await _context.ChatModelSettings.FirstOrDefaultAsync(s => s.ChatID == chatId);
 
@@ -103,95 +137,16 @@ namespace DemoChatApp.Services
             }
 
             await _context.SaveChangesAsync();
-            chatSetting = settings;
             return true;
         }
 
-        public async Task<string> NewChatResponseAsync(ChatModelSettings settings, string userMessage)
+        private async Task<string> GenerateChatTitle(string userMessage)
         {
-            string gptResponse = await _openAIService.Chat(userMessage, settings);
-            if (string.IsNullOrEmpty(gptResponse))
-            {
-                return null;
-            }
+            var prompt = "Based on the following user message, generate a short and meaningful chat title:\n\n" +
+                            $"User: {userMessage}\n\n" +
+                            "Title:";
 
-            var chatId = await CreateChatAsync(userMessage);
-            if (chatId == -1) return null;
-
-            bool settingsAdded = await AddChatSettingsAsync(chatId, settings);
-            if (!settingsAdded) return null;
-
-            List<ChatMessage> messages = new List<ChatMessage>();
-            messages.Add(new ChatMessage(SenderRoles.User, userMessage));
-            messages.Add(new ChatMessage(SenderRoles.Assistant, gptResponse));
-            bool MessagesAdded = await _messageService.AddMessageAsync(chatId, messages);
-            if (!MessagesAdded) return null;
-
-            return gptResponse;
-        }
-
-        public async Task<string> ChatWithContextResponseAsync(int chatId, string userMessage)
-        {
-            if (chatSetting == null)
-            {
-                var settings = await GetChatSettingsAsync(chatId);
-                chatSetting = settings;
-            }
-
-            List<ChatMessage> messagesList = await _context.ChatMessages
-                                   .Where(m => m.ChatID == chatId)
-                                   .OrderByDescending(m => m.Timestamp)
-                                   .Take(20)
-                                   .OrderBy(m => m.Timestamp)
-                                   .Select(m => new ChatMessage(m.Sender, m.Message))
-                                   .ToListAsync();
-
-            messagesList.Add(new ChatMessage(SenderRoles.User, userMessage));
-
-            string gptResponse = await _openAIService.Chat(userMessage, chatSetting, messagesList);
-
-            if (string.IsNullOrEmpty(gptResponse))
-            {
-                return null;
-            }
-
-            List<ChatMessage> messages = new List<ChatMessage>();
-            messages.Add(new ChatMessage(SenderRoles.User, userMessage));
-            messages.Add(new ChatMessage(SenderRoles.Assistant, gptResponse));
-            bool MessagesAdded = await _messageService.AddMessageAsync(chatId, messages);
-            if (!MessagesAdded) return null;
-
-            return gptResponse;
-        }
-
-        public async Task<bool> DeleteChatAsync(int chatId)
-        {
-            var chat = await _context.Chats.FindAsync(chatId);
-            if (chat == null) return false;
-
-            var messages = await _context.ChatMessages.Where(m => m.ChatID == chatId).ToListAsync();
-            if (messages.Any())
-            {
-                _context.ChatMessages.RemoveRange(messages);
-            }
-
-            var setting = await _context.ChatModelSettings.FirstOrDefaultAsync(s => s.ChatID == chatId);
-
-            if (setting != null)
-            {
-                int modelSettingId = setting.ID;
-                var modelParemeters = await _context.ModelParameters.FirstOrDefaultAsync(s => s.ChatModelSettingsID == modelSettingId);
-                if (modelParemeters != null)
-                {
-                    _context.ModelParameters.Remove(modelParemeters);
-                }
-                _context.ChatModelSettings.Remove(setting);
-
-            }
-
-            _context.Chats.Remove(chat);
-            await _context.SaveChangesAsync();
-            return true;
+            return await _openAIService.Chat(prompt);
         }
     }
 }

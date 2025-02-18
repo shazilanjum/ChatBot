@@ -13,11 +13,9 @@ namespace DemoChatApp.Services
 {
     internal class MessageService : IMessageService
     {
-        private readonly IChatService _chatService;
         private readonly ChatDbContext _context;
-        public MessageService(IChatService chatService, ChatDbContext context)
+        public MessageService(ChatDbContext context)
         {
-            _chatService = chatService;
             _context = context;
         }
         
@@ -29,9 +27,9 @@ namespace DemoChatApp.Services
                 .ToListAsync();
         }
 
-        public async Task<bool> AddMessageAsync(int chatId, List<ChatMessage> messages)
+        public async Task<bool> AddMessagesInChatAsync(int chatId, List<ChatMessage> messages)
         {
-            var chat = await _chatService.GetChatByIdAsync(chatId);
+            var chat = await _context.Chats.FindAsync(chatId);
             if (chat == null) return false; // Return -1 if chat does not exist
 
             if (messages == null || !messages.Any()) return false; // No messages to add

@@ -4,7 +4,6 @@ namespace DemoChatApp.Interfaces
 {
     public interface IOpenAIService
     {
-        Task<string> Chat(string userMessage, ChatModelSettings settings, List<Models.ChatMessage> chatHistory = null);
-        Task<string> GenerateChatTitle(string userMessage);
+        Task<string> Chat(string prompt, List<Models.ChatMessage> chatHistory = null, ChatModelSettings settings = null);
     }
 }
