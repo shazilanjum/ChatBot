@@ -6,8 +6,9 @@ using System.Threading.Tasks;
 
 namespace DemoChatApp.Options
 {
-    internal class OpenAIOptions
+    public class OpenAIOptions
     {
         public string ApiKey {  get; set; }
+        public string SystemPrompt {  get; set; }
     }
 }

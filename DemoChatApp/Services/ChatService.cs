@@ -2,8 +2,10 @@
 using DemoChatApp.Interfaces;
 using DemoChatApp.Models;
 using DemoChatApp.Models.Enum;
+using DemoChatApp.Options;
 using DemoChatApp.ViewModels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,6 +45,7 @@ namespace DemoChatApp.Services
             "gpt-4-turbo",
             "gpt-3.5-turbo"
         };
+
         public async Task<ChatModelSettings> GetChatSettingsAsync(int chatId)
         {
             return await _context.ChatModelSettings
@@ -124,7 +127,7 @@ namespace DemoChatApp.Services
             List<ChatMessage> messages = new List<ChatMessage>();
             messages.Add(new ChatMessage(SenderRoles.User, userMessage));
             messages.Add(new ChatMessage(SenderRoles.Assistant, gptResponse));
-            bool MessagesAdded = await _messageService.AddMessageAsync(chatId, messages);
+            bool MessagesAdded = await _messageService.AddMessagesAsync(chatId, messages);
             if (!MessagesAdded) return null;
 
             return gptResponse;
@@ -138,7 +141,8 @@ namespace DemoChatApp.Services
                 chatSetting = settings;
             }
 
-            List<ChatMessage> messagesList = await _context.ChatMessages
+            List<ChatMessage> messagesList = new List<ChatMessage>();
+            messagesList = await _context.ChatMessages
                                    .Where(m => m.ChatID == chatId)
                                    .OrderByDescending(m => m.Timestamp)
                                    .Take(20)
@@ -158,7 +162,7 @@ namespace DemoChatApp.Services
             List<ChatMessage> messages = new List<ChatMessage>();
             messages.Add(new ChatMessage(SenderRoles.User, userMessage));
             messages.Add(new ChatMessage(SenderRoles.Assistant, gptResponse));
-            bool MessagesAdded = await _messageService.AddMessageAsync(chatId, messages);
+            bool MessagesAdded = await _messageService.AddMessagesAsync(chatId, messages);
             if (!MessagesAdded) return null;
 
             return gptResponse;

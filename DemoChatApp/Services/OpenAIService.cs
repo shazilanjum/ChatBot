@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace DemoChatApp.Services
 {
-    internal class OpenAIService : IOpenAIService
+    public class OpenAIService : IOpenAIService
     {
         private readonly OpenAIOptions _openAIOptions;
 
@@ -28,7 +28,7 @@ namespace DemoChatApp.Services
         public async Task<string> Chat(string userMessage, ChatModelSettings settings, List<Models.ChatMessage> chatHistory = null)
         {
             List<OpenAI.Chat.ChatMessage> chatMessages = new List<OpenAI.Chat.ChatMessage>();
-
+            chatMessages.Add(new SystemChatMessage(_openAIOptions.SystemPrompt));
             if (chatHistory.Any())
             {
                 chatHistory.ForEach(message =>
@@ -53,8 +53,7 @@ namespace DemoChatApp.Services
             ChatCompletionOptions options = new ChatCompletionOptions()
             {
                 TopP = settings.Parameters.TopP,
-                Temperature = settings.Parameters.Temperature,
-                MaxOutputTokenCount = settings.Parameters.MaxTokens,
+                Temperature = settings.Parameters.Temperature
 
             };
 
@@ -64,11 +63,12 @@ namespace DemoChatApp.Services
 
         public async Task<string> GenerateChatTitle(string userMessage)
         {
-            var prompt = "Based on the following user message, generate a short and meaningful chat title:\n\n" +
+            string prompt = "Based on the following user message, generate a short and meaningful chat title:\n\n" +
                             $"User: {userMessage}\n\n" +
                             "Title:";
-
+            string systemPrompt = "You are a helpful assistant that provides concise and relevant chat titles.";
             List<OpenAI.Chat.ChatMessage> chatMessages = new List<OpenAI.Chat.ChatMessage>();
+            chatMessages.Add(new SystemChatMessage(systemPrompt));
             chatMessages.Add(new UserChatMessage(prompt));
             ChatClient client = new(model: "gpt-4", apiKey: _openAIOptions.ApiKey);
             var response = await client.CompleteChatAsync(chatMessages);

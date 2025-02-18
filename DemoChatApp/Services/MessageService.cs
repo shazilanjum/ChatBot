@@ -29,7 +29,7 @@ namespace DemoChatApp.Services
                 .ToListAsync();
         }
 
-        public async Task<bool> AddMessageAsync(int chatId, List<ChatMessage> messages)
+        public async Task<bool> AddMessagesAsync(int chatId, List<ChatMessage> messages)
         {
             var chat = await _chatService.GetChatByIdAsync(chatId);
             if (chat == null) return false; // Return -1 if chat does not exist

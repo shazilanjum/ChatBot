@@ -12,8 +12,6 @@ namespace DemoChatApp.Models
         [Key]
         public int ID { get; set; }
 
-        public int MaxTokens { get; set; }
-
         public float Temperature { get; set; }
 
         public float TopP { get; set; }
@@ -24,7 +22,6 @@ namespace DemoChatApp.Models
 
         public ModelParameters()
         {
-            MaxTokens = 1000;
             Temperature = 0.7f;
             TopP = 1.0f;
         }
