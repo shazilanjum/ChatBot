@@ -1,5 +1,7 @@
-﻿using DemoChatApp.Interfaces;
+﻿using DemoChatApp.Data;
+using DemoChatApp.Interfaces;
 using DemoChatApp.Models;
+using DemoChatApp.Models.Enum;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,31 +15,44 @@ namespace DemoChatApp.Services
     public class ChatService : IChatService
     {
         private readonly IOpenAIService _openAIService;
+        private readonly ChatDbContext _dbContext;
 
-        public ChatService(IOpenAIService openAIService) 
+        public ChatService(IOpenAIService openAIService, ChatDbContext chatDbContext) 
         {
             _openAIService = openAIService;
+            _dbContext = chatDbContext;
         }
 
 
-        public async Task CreateNewChat()
+        public async Task<Chat> StartNewChat(string message, ChatModelSettings modelSettings = null)
         {
+            string title = await GetChatTitleFromUserMesssage(message);
 
-        }
-
-        public async Task<string> GetChatTitle()
-        {
-            var message = "Based on the following user message, generate a short and meaningful chat title. Just give me the title. Nothing Else:\n\n" +
-                 $"User: Act as a C# developer and help me generate a chat bot using OpenAI\n\n";
-
-            List<ChatMessage> chatMessages = new List<ChatMessage>
+            Chat chat = new()
             {
-                new ChatMessage(Models.Enum.SenderRoles.User, message)
+                Title = title,
+                ModelSettings = modelSettings ?? new ChatModelSettings(),
+                ChatHistory = [new(SenderRoles.User, message)]
             };
 
-            string title = await _openAIService.Chat(chatMessages);
+            _dbContext.Chats.Add(chat);
 
-            return title;
+            await _dbContext.SaveChangesAsync();
+
+            return chat;
+        }
+
+        private async Task<string> GetChatTitleFromUserMesssage(string userMessage)
+        {
+            var promptMessage = "Based on the following user message, generate a short and meaningful chat title. Just give me the title. Nothing Else:\n\n" +
+                 $"User: {userMessage}\n\n";
+
+            List<ChatMessage> chatMessages =
+            [
+                new ChatMessage(SenderRoles.User, promptMessage)
+            ];
+
+            return await _openAIService.Chat(chatMessages);
         }
     }
 }

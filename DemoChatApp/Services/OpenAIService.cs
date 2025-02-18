@@ -47,7 +47,7 @@ namespace DemoChatApp.Services
 
             ChatClient client = new(model: "gpt-4o", apiKey: _openAIOptions.ApiKey);
 
-            var response = await client.CompleteChatAsync(chatMessages);
+            var response = await client.CompleteChatAsync(chatMessages, );
 
             return response.Value.Content.FirstOrDefault().Text;
 
