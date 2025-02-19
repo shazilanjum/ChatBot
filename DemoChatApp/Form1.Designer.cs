@@ -46,10 +46,12 @@
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(744, 445);
-            Controls.Add(webView);
+            Controls.Add(webView);           
             Name = "Form1";
             Text = "Form1";
+            this.WindowState = FormWindowState.Maximized;
             ResumeLayout(false);
+
         }
 
         #endregion

@@ -9,7 +9,17 @@
 @using System.Collections.ObjectModel
 @using DevExpress.XtraDiagram.Utils
 @using Markdig
+@using Microsoft.AspNetCore.Components.Web
+@using static DevExpress.XtraPrinting.Native.ExportOptionsPropertiesNames
 @inject ChatViewModel ViewModel
+
+<head>
+    @*...*@
+    <link href=@AppendVersion("_content/DevExpress.Blazor.Themes/fluent-light.min.css") rel="stylesheet" />
+    <link href=@AppendVersion("css/site.css") rel="stylesheet" />
+    @*...*@
+</head>
+
 
 
 <DxSplitter CssClass="border" Height="100vh">
@@ -19,12 +29,21 @@
             <div style="margin-bottom: 15px;">
                 <DxButton Click="ViewModel.StartNewChat" Text="New Chat" CssClass="w-full" />
             </div>
-            <DxListBox ShowSearchBox="true" Data="@ViewModel.Chats" SelectedItemsChanged="@(async (IEnumerable<ChatListViewModel> values) => await ViewModel.OnClickChatChange(values))" @bind-Values="ViewModel.SelectedChatSelection" TextFieldName="@nameof(ChatListViewModel.ChatTitle)" Style="height: 100%; width: 100%;"></DxListBox>
+            <DxListBox ShowSearchBox="true" Data="@ViewModel.Chats" SelectedItemsChanged="@(async (IEnumerable<ChatListViewModel> values) => await ViewModel.OnClickChatChange(values))" @bind-Values="ViewModel.SelectedChatSelection" TextFieldName="@nameof(ChatListViewModel.ChatTitle)" Style="height: 100%; width: 100%;">
+                <ItemTemplate>
+                <div class="list-item">
+                <span>@context.ChatTitle</span>
+                <DxButton Click="async ()=>await ViewModel.DeleteChat(context.ChatID)" RenderStyle="ButtonRenderStyle.Danger"
+                                         RenderStyleMode="ButtonRenderStyleMode.Outline"
+                                         Text="Delete" />
+                </div>
+                </ItemTemplate>
+            </DxListBox>
         </DxSplitterPane>
-        <DxSplitterPane>
+        <DxSplitterPane CssClass="card-dark">
             <DevExpress.Blazor.Internal.DxCard>
-                <DevExpress.Blazor.Internal.DxCardHeader>
-                    <DxGridLayout ColumnSpacing="8px" RowSpacing="8px">
+                <DevExpress.Blazor.Internal.DxCardHeader >
+                    <DxGridLayout ColumnSpacing="8px" RowSpacing="8px" >
                         <Rows>
                             <DxGridLayoutRow Height="auto" />
                         </Rows>
@@ -44,44 +63,50 @@
                                     </DxComboBox>
                                 </Template>
                             </DxGridLayoutItem>
-                            <DxGridLayoutItem Row="0" Column="1">
+                            <DxGridLayoutItem Row="0" Column="1" CssClass="card-dark">
                                 <Template>
-                                    @*     <DxComboBox Data="@modelSetting"
-                                    @bind-Value="@Value"
-                                    ShowDropDownButton="false"
-                                    NullText="Settings">
-                                    <Buttons>
-                                    <DxComboBoxDropDownButton Position="EditorButtonPosition.Right" />
-                                    </Buttons>
-                                    </DxComboBox> *@
-
-
                                     <DxButton Text="Parameters" Click="@(() => PopupVisible = true)" />
                                     <DxPopup @bind-Visible="@PopupVisible"
                                              HeaderText="Model Parameter Setting"
                                              ShowFooter="true">
                                         <BodyTemplate Context="PopupContext">
                                             <DxFormLayout style="padding: 1rem;">
+
                                                 <DxFormLayoutItem Caption="Temperature:" ColSpanMd="12">
-                                                    <input type="range" min="0" max="1" step="0.01" @bind="sliderValue" class="custom-slider" />
+                                                    <div class="temperature-container">
+                                                        <!-- Range Slider -->
+                                                        <input type="range" min="0" max="1" step="0.1"
+                                                               @bind="TemperatureValue"
+                                                               @bind:event="oninput"
+                                                               class="custom-slider" />
+
+                                                        <!-- Spin Edit -->
+                                                        <DxSpinEdit Value="@TemperatureValue"
+                                                                    ValueChanged="@((decimal v) => OnTemperatureChanged(v))"
+                                                                    Increment="0.1M"
+                                                                    MinValue="0M"
+                                                                    MaxValue="1M"
+                                                                    ShowSpinButtons="true" />
+                                                    </div>
                                                 </DxFormLayoutItem>
+
                                                 <DxFormLayoutItem Caption="TopP:" ColSpanMd="12">
-                                                    <DxRangeSelector Width="100%" SelectedRangeStartValue="0.5"
-                                                                     SelectedRangeEndValue="0.5"
-                                                                     ValueChangeMode="RangeSelectorValueChangeMode.OnHandleMove">
+                                                    <div class="temperature-container">
+                                                        <!-- Range Slider -->
+                                                        <input type="range" min="0" max="1" step="0.1"
+                                                               @bind="TopPValue"
+                                                               @bind:event="oninput"
+                                                               class="custom-slider" />
 
-                                                        <DxRangeSelectorScale StartValue="0"
-                                                                              EndValue="1">
-                                                            <DxRangeSelectorScaleLabel TopIndent="0">
-                                                                <DxFontSettings Weight="600" Color="#5f368d" Size="14" />
-                                                                <DxTextFormatSettings Type="TextFormat.Decimal" />
-                                                            </DxRangeSelectorScaleLabel>
-                                                        </DxRangeSelectorScale>
-
-                                                    </DxRangeSelector>
-
+                                                        <!-- Spin Edit -->
+                                                        <DxSpinEdit Value="@TopPValue"
+                                                                    ValueChanged="@((decimal v) => OnTopPChanged(v))"
+                                                                    Increment="0.1M"
+                                                                    MinValue="0M"
+                                                                    MaxValue="1M"
+                                                                    ShowSpinButtons="true" />
+                                                    </div>
                                                 </DxFormLayoutItem>
-
                                             </DxFormLayout>
                                         </BodyTemplate>
                                         <FooterContentTemplate>
@@ -91,7 +116,6 @@
                                     </DxPopup>
 
 
-
                                 </Template>
                             </DxGridLayoutItem>
                         </Items>
@@ -99,27 +123,22 @@
 
                 </DevExpress.Blazor.Internal.DxCardHeader>
                 <div class="chat-body">
-                    <DevExpress.Blazor.Internal.DxCardBody CssClass="full-height">
+                    <DevExpress.Blazor.Internal.DxCardBody CssClass="full-height card-dark">
 
                         @if (ViewModel.SelectedChat != null)
                         {
                             <div class="chat-box">
                                 @foreach (var message in ViewModel.SelectedChat.ChatHistory)
-                                {
-                                    if (message.Sender == SenderRoles.User)
-                                    {
-                                        <div class="chat-message">
+                                {  
+                                    <div class="chat-message">
                                             <DevExpress.Blazor.Internal.DxCard>
-                                                <DevExpress.Blazor.Internal.DxCardBody>
+                                                <DevExpress.Blazor.Internal.DxCardBody CssClass="dark">
                                                     <div>
-                                                        @(Markdown.ToHtml(message.Message))
+                                                        <div>@(new MarkupString(Markdown.ToHtml(message.Message, new MarkdownPipelineBuilder().UseAdvancedExtensions().Build())))</div>
                                                     </div>
                                                 </DevExpress.Blazor.Internal.DxCardBody>
                                             </DevExpress.Blazor.Internal.DxCard>
                                         </div>
-                                    }
-
-
 
                                 }
                             </div>
@@ -128,142 +147,58 @@
                     </DevExpress.Blazor.Internal.DxCardBody>
                 </div>
   
-            </DevExpress.Blazor.Internal.DxCard>
+        </DevExpress.Blazor.Internal.DxCard>
             <div style="margin-top: 20px;">
                 <DevExpress.Blazor.Internal.DxCard>
                     <DevExpress.Blazor.Internal.DxCardHeader>
-                        <DxMemo @bind-Text="ViewModel.UserMessage" NullText="Ask me something..." SizeMode="SizeMode.Large" ResizeMode="MemoResizeMode.Disabled" Style="height: 100px;"></DxMemo>
-                        <DxButton style="margin-top: 10px;" Click="ViewModel.SendMessage" Text="Send" CssClass="mt-2" />
+                        <DxMemo @bind-Text="ViewModel.UserMessage"
+                            NullText="Ask me something..." SizeMode="SizeMode.Large" ResizeMode="MemoResizeMode.Disabled" Style="height: 100px;"></DxMemo>
+                        <DxButton style="margin-top: 10px;" Enabled="!string.IsNullOrWhiteSpace(ViewModel.UserMessage)" Click="ViewModel.SendMessage" Text="Send" CssClass="mt-2" />
 
                     </DevExpress.Blazor.Internal.DxCardHeader>
-
-
                 </DevExpress.Blazor.Internal.DxCard>
             </div>
-
-
         </DxSplitterPane>
     </Panes>
-
-
-
 </DxSplitter>
 
 
-<style>
-    .sidebar {
-        width: 250px;
-        padding: 10px;
-        background: #f5f5f5;
-    }
-
-    .new-chat-button {
-        width: 100%;
-        margin-bottom: 10px;
-    }
-
-    .chat-window {
-        padding: 15px;
-    }
-
-    .undo {
-        width: 16px;
-        height: 16px;
-        background-image: url("../images/send.png");
-    }
-
-    .myButton {
-        float: right
-    }
-
-    .full-height {
-        height: 100vh !important; /* Ensure it takes full viewport height */
-        width: 100%;
-    }
-
-    .vertical-layout {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .custom-slider {
-        width: 100%;
-        appearance: none;
-        height: 6px;
-        background: #ccc;
-        border-radius: 4px;
-        outline: none;
-    }
-
-    .custom-slider::-webkit-slider-thumb {
-        appearance: none;
-        width: 16px;
-        height: 16px;
-        background: #5f368d;
-        border-radius: 50%;
-        cursor: pointer;
-    }
-
-    .vertical-layout div {
-        margin-bottom: 8px;
-    }
-
-    .full-height-drawer .dx-drawer-panel {
-        height: 100vh !important; /* Full viewport height */
-    }
-
-    .chat-container {
-        max-width: 600px;
-        margin: auto;
-    }
-
-    .chat-box {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .chat-body {
-        height: 400px; /* Set a fixed height */
-        overflow-y: auto; /* Enable scrolling */
-        padding: 10px;
-        background-color: #f9f9f9;
-        border-radius: 10px;
-    }
-
-    .chat-message {
-        padding: 10px;
-        border-radius: 8px;
-        background-color: #f4f4f4;
-        max-width: 80%;
-    }
-
-    .chat-message:nth-child(even) {
-        align-self: flex-start;
-        background-color: #e0e0e0;
-    }
-
-    .chat-message:nth-child(odd) {
-        align-self: flex-end;
-        background-color: #d1e7ff;
-    }
-
-    .full-height{
-        height: 100vh
-    }
+<style >
+   
 
 </style>
 
 
 @code {
 
+    private string AppendVersion(string path) => $"{path}?v={typeof(DevExpress.Blazor.ResourcesConfigurator).Assembly.GetName().Version}";
 
     private double[] sliderValue;
     private List<ChatMessage> Messages = new();
     private string UserMessage { get; set; }
-    
+
     private string SelectedChat { get; set; }
     IEnumerable<string> Models;
+
+    private bool IsSendEnabled;
+
+    private decimal TemperatureValue { get; set; } = 0.7M; // Default value
+    private decimal TopPValue { get; set; } = 0.9M; // Default value
+
+    private double GetDoubleValue(decimal value) => (double)value;
+    private decimal GetDecimalValue(double value) => (decimal)value;
+
+
+
+    private void OnTemperatureChanged(decimal value)
+    {
+        TemperatureValue = value;
+    }
+
+    private void OnTopPChanged(decimal value)
+    {
+        TopPValue = value;
+    }
 
 
     protected override async Task OnInitializedAsync()
@@ -289,7 +224,6 @@
 
     private string Value = null;
     IEnumerable<string> Values { get; set; }
-
 
     private bool IsDrawerOpen { get; set; } = false;
 
@@ -355,5 +289,7 @@
 
         Models = OpenAIModels.OpenAIModelsMapping.Values.ToList();
     }
+
+
 
 }

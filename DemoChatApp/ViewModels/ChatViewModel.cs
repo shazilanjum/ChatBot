@@ -27,7 +27,7 @@ namespace DemoChatApp.ViewModels
 
         public List<ChatMessage> Messages { get; private set; } = new();
         public string UserMessage { get; set; } = string.Empty;
-        public string ChatText { get; private set; } = "End users cannot change the Memo value";
+        public string ChatText { get; private set; } = "";
         public IEnumerable<string> Models { get; } = new List<string> { "GPT-4", "GPT-3.5", "Custom Model" };
 
         public ChatViewModel(IChatService chatService)
@@ -48,41 +48,52 @@ namespace DemoChatApp.ViewModels
 
         public async Task StartNewChat()
         {
-            ChatText = "";
-            Messages = new();
             UserMessage = "";
             SelectedChat = null;
             ChatModelSettingsViewModel = new ChatModelSettingsViewModel();
             SelectedChatSelection = new List<ChatListViewModel>();
-
         }
 
         public async Task SendMessage()
         {
-
             ChatModelSettings chatModelSettings = new(ChatModelSettingsViewModel);
 
+            bool firstChat = SelectedChat is null;
 
-            if (SelectedChat == null)
+            if (firstChat)
             {
-
-                SelectedChat = await _chatService.CreateChatAsync(UserMessage, chatModelSettings);
-
-
-
+                SelectedChat = new Chat
+                {
+                    ModelSettings = chatModelSettings,
+                    Title = await _chatService.GenerateChatTitle(UserMessage)
+                };
+            }
+            else
+            {
+                SelectedChat.ModelSettings = chatModelSettings;
             }
 
-            bool settingsChanged = CheckIfSettingsChanged(chatModelSettings);
-
-            SelectedChat.ModelSettings = chatModelSettings;
-
-            var gptResponse = await _chatService.ChatWithAI(UserMessage, SelectedChat, settingsChanged);
+            var gptResponse = await _chatService.ChatWithAI(UserMessage, SelectedChat);
 
             if (!string.IsNullOrWhiteSpace(gptResponse))
             {
-                Messages.Add(new(SenderRoles.User, UserMessage));
-                Messages.Add(new(SenderRoles.Assistant, gptResponse));
-                UserMessage = string.Empty;
+                SelectedChat.ChatHistory.Add(new(SenderRoles.User, UserMessage));
+                SelectedChat.ChatHistory.Add(new(SenderRoles.Assistant, gptResponse));
+
+                var createdChat = await _chatService.AddOrUpdateChatAsync(SelectedChat);
+
+                SelectedChat.ID = createdChat.ID;
+
+                UserMessage = "";
+
+                if (firstChat)
+                {
+                    Chats.Add(new()
+                    {
+                        ChatID = SelectedChat.ID,
+                        ChatTitle = SelectedChat.Title,
+                    });
+                }
             }
         }
 
@@ -92,14 +103,29 @@ namespace DemoChatApp.ViewModels
             {
                 var chat = await _chatService.GetChatByIdAsync(chats.FirstOrDefault().ChatID);
 
-                SelectedChat = chat;
+                if (chat != null)
+                {
+                    SelectedChat = chat;
+
+                    ChatModelSettingsViewModel = new(chat.ModelSettings);
+                }   
             }
-            
         }
 
         private bool CheckIfSettingsChanged(ChatModelSettings chatModelSettings)
         {
             return SelectedChat.ModelSettings != chatModelSettings;
+        }
+
+        public async Task DeleteChat(int chatId)
+        {
+            await _chatService.DeleteChatAsync(chatId);
+
+            var chatToDelete = Chats.FirstOrDefault(chat => chat.ChatID == chatId);
+
+            Chats.Remove(chatToDelete);
+
+            await StartNewChat();
         }
     }
 

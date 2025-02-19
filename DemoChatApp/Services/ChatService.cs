@@ -35,67 +35,48 @@ namespace DemoChatApp.Services
 
         public async Task<Chat> GetChatByIdAsync(int chatId)
         {
-            var chat = await _context.Chats.FirstOrDefaultAsync(chat => chat.ID == chatId);
+            var chat = await _context.Chats.Include(chat=>chat.ChatHistory).Include(chat=>chat.ModelSettings).FirstOrDefaultAsync(chat => chat.ID == chatId);
 
             return chat;
         }
 
-        public async Task<Chat> CreateChatAsync(string userMessage, ChatModelSettings chatModelSettings)
+        public async Task<Chat> AddOrUpdateChatAsync(Chat chat)
         {
-            string chatTitle = await GenerateChatTitle(userMessage);
-            
-            if (string.IsNullOrEmpty(chatTitle))
+            var chatToUpdate = await _context.Chats.FindAsync(chat.ID);
+
+            if (chatToUpdate != null)
             {
-                return null;
+                chatToUpdate = chat;
+                _context.Chats.Update(chatToUpdate);
+            }
+            else
+            {
+                _context.Chats.Add(chat);
             }
 
-            var chat = new Chat 
-            { 
-                Title = chatTitle, 
-                ModelSettings = chatModelSettings, 
-                ChatHistory =
-                [
-                    new(SenderRoles.User, userMessage)
-                ] 
-            };
-
-            _context.Chats.Add(chat);
-            
             await _context.SaveChangesAsync();
-           
+
             return chat;
         }
 
 
-        public async Task<string> ChatWithAI(string userMessage, Chat chat, bool settingsChanged = false)
+        public async Task<string> ChatWithAI(string userMessage, Chat chat)
         {
-            if (settingsChanged)
-            {
-                await AddChatSettingsAsync(chat.ID, chat.ModelSettings);
-            }
-
             
-            List<Models.ChatMessage> messagesList = chat.ChatHistory
-                                .OrderByDescending(m => m.Timestamp)
+            List<ChatMessage> messagesList = chat.ChatHistory
+                                .OrderBy(m => m.Timestamp)
                                 .Take(20)
                                 .Select(m => new Models.ChatMessage(m.Sender, m.Message))
                                 .ToList();
 
             messagesList.Add(new Models.ChatMessage(SenderRoles.User, userMessage));
 
-            var gptResponse = await _openAIService.Chat(userMessage, messagesList, chat.ModelSettings);
+            var gptResponse = await _openAIService.Chat(messagesList, chat.ModelSettings);
 
             if (string.IsNullOrEmpty(gptResponse))
             {
                 return null;
             }
-
-
-            List<ChatMessage> messages = [new(SenderRoles.User, userMessage), new(SenderRoles.Assistant, gptResponse)];
-
-            bool messagesAdded = await _messageService.AddMessagesInChatAsync(chat.ID, messages);
-
-            if (!messagesAdded) return null;
 
             return gptResponse;
         }
@@ -140,13 +121,13 @@ namespace DemoChatApp.Services
             return true;
         }
 
-        private async Task<string> GenerateChatTitle(string userMessage)
+        public async Task<string> GenerateChatTitle(string userMessage)
         {
             var prompt = "Based on the following user message, generate a short and meaningful chat title:\n\n" +
                             $"User: {userMessage}\n\n" +
                             "Title:";
 
-            return await _openAIService.Chat(prompt);
+            return await _openAIService.Chat([new(SenderRoles.User,prompt)]);
         }
     }
 }

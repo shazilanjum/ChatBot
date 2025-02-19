@@ -14,10 +14,12 @@ namespace DemoChatApp.Interfaces
 
         Task<Chat> GetChatByIdAsync(int chatId);
 
-        Task<Chat> CreateChatAsync(string userMessage, ChatModelSettings chatModelSettings);
+        Task<Chat> AddOrUpdateChatAsync(Chat chat);
 
-        Task<string> ChatWithAI(string userMessage, Chat chat, bool settingsChanged = false);
+        Task<string> ChatWithAI(string userMessage, Chat chat);
         
         Task<bool> DeleteChatAsync(int chatId);
+
+        Task<string> GenerateChatTitle(string userMessage);
     }
 }

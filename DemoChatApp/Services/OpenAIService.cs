@@ -27,29 +27,27 @@ namespace DemoChatApp.Services
         }
 
 
-        public async Task<string> Chat(string prompt, List<Models.ChatMessage> chatHistory = null, ChatModelSettings settings = null)
+        public async Task<string> Chat(List<Models.ChatMessage> chatHistory, ChatModelSettings settings = null)
         {
-            List<OpenAI.Chat.ChatMessage> chatMessages = new List<OpenAI.Chat.ChatMessage>();
+            List<OpenAI.Chat.ChatMessage> openaiChatMessages = new List<OpenAI.Chat.ChatMessage>();
 
-            if (chatHistory is not null && chatHistory.Any())
+            if (chatHistory.Any())
             {
                 chatHistory.ForEach(message =>
                 {
                     switch (message.Sender)
                     {
                         case SenderRoles.User:
-                            chatMessages.Add(new UserChatMessage(message.Message));
+                            openaiChatMessages.Add(new UserChatMessage(message.Message));
                             break;
 
                         case SenderRoles.Assistant:
-                            chatMessages.Add(new AssistantChatMessage(message.Message));
+                            openaiChatMessages.Add(new AssistantChatMessage(message.Message));
                             break;
                     };
 
                 });
             }
-
-            chatMessages.Add(new UserChatMessage(prompt));
 
             ChatClient client = new(model: settings == null ? OpenAIModels.OpenAIModelsMapping[ChatModels.gpt4o] : OpenAIModels.OpenAIModelsMapping[settings.SelectedModel], apiKey: _openAIOptions.ApiKey);
 
@@ -63,11 +61,11 @@ namespace DemoChatApp.Services
 
                 };
 
-                var responseWithOptions = await client.CompleteChatAsync(chatMessages, options);
+                var responseWithOptions = await client.CompleteChatAsync(openaiChatMessages, options);
                 return responseWithOptions.Value.Content.FirstOrDefault().Text;
             }
 
-            var response = await client.CompleteChatAsync(chatMessages);
+            var response = await client.CompleteChatAsync(openaiChatMessages);
             return response.Value.Content.FirstOrDefault().Text;
         }
        
